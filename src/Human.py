@@ -1,14 +1,13 @@
-from Weapon import Weapon
-import random
+import uuid
 
 class Human:
     def __init__(self, name, health, position):
+        self.id = str(uuid.uuid4())  # Generate a unique ID
         self.name = name
         self.health = health
         self.position = position
-        self.weapon = Weapon(False)
-        #this is 10 px for seeing if enemy is near
-        self.awearness = 10
+        self.weapon = None
+
     def move(self, x, y):
         self.position = (self.position[0] + x, self.position[1] + y)
 

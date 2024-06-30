@@ -1,9 +1,9 @@
-# game_panel.py
 import pygame
 import json
+import random
 from MapState import MapState
 from Human import Human
-import random 
+from AI_Human import AI_Human
 
 class GamePanel:
     SPRITE_WIDTH = 64
@@ -19,12 +19,18 @@ class GamePanel:
         self.generate_top_sprite_positions()
         self.player = Human("Player", 100, (self.PANEL_WIDTH // 2, self.PANEL_HEIGHT // 2))
         self.map_state = MapState()
+        self.ai_characters = [
+            AI_Human("AI_1", 100, (300, 300)),
+            AI_Human("AI_2", 100, (500, 400))
+        ]
+        self.all_characters = [self.player] + self.ai_characters
 
     def load_sprites(self):
-        self.grass_sprites = [pygame.image.load(f"simulation/sprites/plain_grass{i+1}.png") for i in range(4)]
-        self.water_sprite = pygame.image.load("simulation/sprites/plain_water1.png")
-        self.top_sprite = pygame.image.load("simulation/sprites/plant1.png")
-        self.movable_sprite = pygame.image.load("simulation/sprites/Blue_left.png")
+        self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
+        self.water_sprite = pygame.image.load("sprites/plain_water1.png")
+        self.top_sprite = pygame.image.load("sprites/plant1.png")
+        self.movable_sprite = pygame.image.load("sprites/Blue_left.png")
+        self.ai_sprite = pygame.image.load("sprites/red_1.png")  # Add a different sprite for AI
 
     def generate_background(self):
         self.background = pygame.Surface((self.PANEL_WIDTH, self.PANEL_HEIGHT))
@@ -47,7 +53,7 @@ class GamePanel:
         cols = self.PANEL_WIDTH // self.SPRITE_WIDTH + 2
         rows = self.PANEL_HEIGHT // (self.SPRITE_HEIGHT // 2) + 2
         self.top_sprite_positions = [[False for _ in range(cols)] for _ in range(rows)]
-        
+
         for y in range(rows):
             for x in range(cols):
                 if not self.water_positions[y][x] and random.randint(0, 16) == 0:
@@ -55,19 +61,17 @@ class GamePanel:
 
     def save_character_state_to_json(self, filename):
         tiles = []
-        
-        
-        player_pos = {"x": self.player.position[0], "y": self.player.position[1]}
-        data = {"tiles": tiles, "player": player_pos}
-        
+        character_positions = [{"id": char.id, "x": char.position[0], "y": char.position[1]} for char in self.all_characters]
+        data = {"tiles": tiles, "characters": character_positions}
+
         with open(filename, "w") as file:
             json.dump(data, file)
-            
+
     def save_map_state_to_json(self, filename):
         tiles = []
         cols = self.PANEL_WIDTH // self.SPRITE_WIDTH + 2
         rows = self.PANEL_HEIGHT // (self.SPRITE_HEIGHT // 2) + 2
-        
+
         for y in range(rows):
             for x in range(cols):
                 xPos = x * self.SPRITE_WIDTH
@@ -77,12 +81,13 @@ class GamePanel:
                 tile_type = "water" if self.water_positions[y][x] else "grass"
                 has_top_sprite = self.top_sprite_positions[y][x]
                 tiles.append({"x": xPos, "y": yPos, "type": tile_type, "hasTopSprite": has_top_sprite})
-        
-        player_pos = {"x": self.player.position[0], "y": self.player.position[1]}
-        data = {"tiles": tiles, "player": player_pos}
-        
+
+        character_positions = [{"id": char.id, "x": char.position[0], "y": char.position[1]} for char in self.all_characters]
+        data = {"tiles": tiles, "characters": character_positions}
+
         with open(filename, "w") as file:
             json.dump(data, file)
+
     def run(self):
         self.save_map_state_to_json("state/map_state.json")
         running = True
@@ -102,6 +107,9 @@ class GamePanel:
                     elif event.key == pygame.K_d:
                         self.player.move(5, 0)
 
+            for ai in self.ai_characters:
+                ai.ai_move()
+
             self.screen.blit(self.background, (0, 0))
             for y in range(len(self.top_sprite_positions)):
                 for x in range(len(self.top_sprite_positions[0])):
@@ -111,8 +119,11 @@ class GamePanel:
                         if y % 2 != 0:
                             xPos -= self.SPRITE_WIDTH // 2
                         self.screen.blit(self.top_sprite, (xPos, yPos))
-            
+
             self.screen.blit(self.movable_sprite, self.player.position)
+            for ai in self.ai_characters:
+                self.screen.blit(self.ai_sprite, ai.position)
+
             pygame.display.flip()
             clock.tick(60)
         pygame.quit()
