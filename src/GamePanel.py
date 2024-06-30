@@ -29,7 +29,7 @@ class GamePanel:
         self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
         self.water_sprite = pygame.image.load("sprites/plain_water1.png")
         self.top_sprite = pygame.image.load("sprites/plant1.png")
-        self.movable_sprite = pygame.image.load("sprites/Blue_left.png")
+        self.movable_sprite = pygame.image.load("sprites/blue_1.png")
         self.ai_sprite = pygame.image.load("sprites/red_1.png")  # Add a different sprite for AI
 
     def generate_background(self):
@@ -106,6 +106,9 @@ class GamePanel:
                         self.player.move(0, 5)
                     elif event.key == pygame.K_d:
                         self.player.move(5, 0)
+                    elif event.key == pygame.K_e:
+                        self.player.attack()
+
 
             for ai in self.ai_characters:
                 ai.ai_move()
