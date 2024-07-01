@@ -43,7 +43,10 @@ class Human:
         return self.weapon
     
     def set_health(self, new_health):
-        self.health = new_health 
+        if new_health >=100:
+            self.health = 100
+        else:
+            self.health = new_health
 
     
 

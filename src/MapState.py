@@ -1,10 +1,10 @@
-from Human import Human
 import math
 
 class MapState:
     def __init__(self):
         self.tiles = []
         self.characters = {}
+        self.food_locations = []
 
     class Tile:
         def __init__(self, x, y, tile_type, has_top_sprite):
@@ -37,20 +37,39 @@ class MapState:
     def get_character(self, character_id):
         return self.characters.get(character_id, None)
 
-    def attack_check(self, character: Human):
+    def attack_check(self, character):
         self_x, self_y = character.position
         for char_id, char in self.characters.items():
             if char_id != character.id:
                 char_x, char_y = char.position
                 distance = math.sqrt((char_x - self_x) ** 2 + (char_y - self_y) ** 2)
-                #print(f"Checking distance to {char.name}: {distance}")
                 if distance <= character.attack_radius:
-                    #print(f"Target within range: {char.name}")
                     return char_id
         return None
+
+    def add_food(self, x, y):
+        self.food_locations.append((x, y))
+
+    def remove_food(self, x, y):
+        if (x, y) in self.food_locations:
+            self.food_locations.remove((x, y))
+
+    def check_food(self, character):
+        self_x, self_y = character.position
+        for food_x, food_y in self.food_locations:
+            distance = math.sqrt((food_x - self_x) ** 2 + (food_y - self_y) ** 2)
+      
+            if distance <= 30:
+                #print(f"Food eaten at ({food_x}, {food_y}) by character at ({self_x}, {self_y})")
+                self.remove_food(food_x, food_y)
+                return True
+        return False
+
+
 
     def to_dict(self):
         return {
             "tiles": [tile.__dict__ for tile in self.tiles],
-            "characters": {char_id: char.__dict__ for char_id, char in self.characters.items()}
+            "characters": {char_id: char.__dict__ for char_id, char in self.characters.items()},
+            "food_locations": self.food_locations
         }

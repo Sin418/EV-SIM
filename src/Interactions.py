@@ -10,5 +10,7 @@ class Interactions:
                 if attacker.weapon:
                     dmg = attacker.weapon.get_damage()
                     char.take_damage(dmg)
-                    print(f"{char.name}'s health is now {char.health}")
                 return
+
+
+    

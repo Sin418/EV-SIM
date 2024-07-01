@@ -19,17 +19,17 @@ class GamePanel:
         self.map_state = MapState()
         self.load_sprites()
         self.generate_background()
-        self.generate_top_sprite_positions()
-        self.player = Human("Player", 100, (self.PANEL_WIDTH // 2, self.PANEL_HEIGHT // 2))
-        self.map_state.add_character(self.player)
+        self.generate_food_positions()
+        self.map_state.add_character(Human("Player", 100, (self.PANEL_WIDTH // 2, self.PANEL_HEIGHT // 2)))
         self.map_state.add_character(Human("AI_1", 100, (300, 300)))
         self.map_state.add_character(Human("AI_2", 100, (850, 500)))
         self.character_stats_to_display = []
+        self.last_health_decrease_time = pygame.time.get_ticks()  # Initialize the timer
 
     def load_sprites(self):
         self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
         self.water_sprite = pygame.image.load("sprites/plain_water1.png")
-        self.top_sprite = pygame.image.load("sprites/plant1.png")
+        self.food_sprite = pygame.image.load("sprites/plant1.png")
         self.movable_sprite = pygame.image.load("sprites/blue_1.png")
         self.ai_sprite = pygame.image.load("sprites/red_1.png")
 
@@ -40,9 +40,9 @@ class GamePanel:
         self.water_positions = [[False for _ in range(cols)] for _ in range(rows)]
 
         for y in range(rows):
+            yPos = y * (self.SPRITE_HEIGHT // 2) - self.SPRITE_HEIGHT // 2
             for x in range(cols):
                 xPos = x * self.SPRITE_WIDTH
-                yPos = y * (self.SPRITE_HEIGHT // 2) - self.SPRITE_HEIGHT // 2
                 if y % 2 != 0:
                     xPos -= self.SPRITE_WIDTH // 2
                 is_water = random.randint(0, 11) == 0
@@ -51,29 +51,32 @@ class GamePanel:
                 self.background.blit(bottom_sprite, (xPos, yPos))
                 self.map_state.add_tile(xPos, yPos, "water" if is_water else "grass")
 
-    def generate_top_sprite_positions(self):
+    def generate_food_positions(self):
         cols = self.PANEL_WIDTH // self.SPRITE_WIDTH + 2
         rows = self.PANEL_HEIGHT // (self.SPRITE_HEIGHT // 2) + 2
         
-        self.top_sprite_positions = [[False for _ in range(cols)] for _ in range(rows)]
-
         for y in range(rows):
             for x in range(cols):
                 if not self.water_positions[y][x] and random.randint(0, 16) == 0:
-                    self.top_sprite_positions[y][x] = True
-                    self.map_state.update_tile(x * self.SPRITE_WIDTH, y * (self.SPRITE_HEIGHT // 2) - self.SPRITE_HEIGHT // 2, True)
+                    xPos = x * self.SPRITE_WIDTH
+                    yPos = y * (self.SPRITE_HEIGHT // 2) - self.SPRITE_HEIGHT // 2
+                    if y % 2 != 0:
+                        xPos -= self.SPRITE_WIDTH // 2
+                    self.map_state.add_food(xPos, yPos)
 
-    def handle_player_movement(self, key):
-        if key == pygame.K_w:
-            self.player.move(0, -5)
-        elif key == pygame.K_a:
-            self.player.move(-5, 0)
-        elif key == pygame.K_s:
-            self.player.move(0, 5)
-        elif key == pygame.K_d:
-            self.player.move(5, 0)
+    def handle_movement(self, key):
+        movement_map = {
+            pygame.K_w: (0, -5),
+            pygame.K_a: (-5, 0),
+            pygame.K_s: (0, 5),
+            pygame.K_d: (5, 0)
+        }
         
-        self.map_state.update_character(self.player)
+        if key in movement_map:
+            dx, dy = movement_map[key]
+            for char in self.map_state.characters.values():
+                char.move(dx, dy)
+                self.map_state.update_character(char)
 
     def handle_character_stats(self, pos):
         chars = self.map_state.characters.values()
@@ -86,16 +89,24 @@ class GamePanel:
             if distance <= 30:
                 self.character_stats_to_display.append(char)
 
-    def handle_interactions(self):
-        target_id = self.map_state.attack_check(self.player)
-        if target_id:
-            target_character = self.map_state.get_character(target_id)
-            Interactions.attack_player(self.player, target_id, self.map_state.characters.values())
-            self.map_state.update_character(target_character)
-            self.map_state.update_character(self.player)
+    def handle_attack_interactions(self):
+        for char in self.map_state.characters.values():
+            target_id = self.map_state.attack_check(char)
+            if target_id:
+                target_character = self.map_state.get_character(target_id)
+                Interactions.attack_player(char, target_id, self.map_state.characters.values())
+                self.map_state.update_character(target_character)
+                self.map_state.update_character(char)
+        self.check_and_remove_characters()  
+
+    def handle_eating_interactions(self):
+        for char in self.map_state.characters.values():
+            if self.map_state.check_food(char):
+                char.set_health(char.get_health() + 10)  
+                self.map_state.update_character(char)
 
     def draw_character_stats(self):
-        y_offset = 50  # Initial y position for the first character's stats
+        y_offset = 50  # 
         for char in self.character_stats_to_display:
             stats = f"""Name: {char.get_name()}
 Health: {char.get_health()}
@@ -104,57 +115,75 @@ Weapon Health: {char.get_weapon().get_health()}
 Weapon Strength: {char.get_weapon().get_damage()}
 Position: {char.get_position()}"""            
             lines = stats.split('\n')
-            # Determine the width and height of the rectangle based on the text
+         
             rect_width = 400
             rect_height = len(lines) * 30 + 20
-            bg_color = (255, 225, 225)  # Background color
-            border_color = (0, 0, 0)    # Border color
-            text_color = (0, 0, 0)      # Text color
+            bg_color = (255, 225, 225)  
+            border_color = (0, 0, 0)    
+            text_color = (0, 0, 0)      
             padding = 10
             border_width = 3
             
-            # Draw background rectangle
             pygame.draw.rect(self.screen, bg_color, pygame.Rect(50, y_offset, rect_width, rect_height), border_radius=10)
             
-            # Draw border rectangle
             pygame.draw.rect(self.screen, border_color, pygame.Rect(50, y_offset, rect_width, rect_height), border_radius=10, width=border_width)
             
             for i, line in enumerate(lines):
                 text_surface = self.font.render(line.strip(), True, text_color)
                 self.screen.blit(text_surface, (60, y_offset + i * 30 + padding))
-            y_offset += rect_height + 20  # Update y_offset for the next character's stats
+            y_offset += rect_height + 20  
+    
+    def decrease_health(self, value):
+        chars_to_remove = []
+        for char_id, char in self.map_state.characters.items():
+            char.set_health(char.get_health() - value)
+            if char.get_health() <= 0:
+                chars_to_remove.append(char_id)
+        for char_id in chars_to_remove:
+            self.map_state.remove_character(char_id)
 
+    def check_and_remove_characters(self):
+        chars_to_remove = [char_id for char_id, char in self.map_state.characters.items() if char.get_health() <= 0]
+        for char_id in chars_to_remove:
+            self.map_state.remove_character(char_id)
+
+    def draw_food_sprites(self):
+        for (x, y) in self.map_state.food_locations:
+            self.screen.blit(self.food_sprite, (x + 15, y))
+
+    def draw_characters(self):
+        for char in self.map_state.characters.values():
+            self.screen.blit(self.ai_sprite, char.position)
 
     def run(self):
         running = True
         clock = pygame.time.Clock()
+        health_decrease_interval = 5000  
+        last_health_decrease_time = pygame.time.get_ticks()
+        
         while running:
+            current_time = pygame.time.get_ticks()
+            if current_time - last_health_decrease_time >= health_decrease_interval:
+                self.decrease_health(10)
+                last_health_decrease_time = current_time
+                self.check_and_remove_characters()
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    self.handle_player_movement(event.key)
+                    self.handle_movement(event.key)
                     if event.key == pygame.K_e:
-                        self.handle_interactions()
+                        self.handle_attack_interactions()
+                    if event.key == pygame.K_f:
+                        self.handle_eating_interactions()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     pos = pygame.mouse.get_pos()
                     self.handle_character_stats(pos)
 
             self.screen.blit(self.background, (0, 0))
-            for y in range(len(self.top_sprite_positions)):
-                for x in range(len(self.top_sprite_positions[0])):
-                    if self.top_sprite_positions[y][x]:
-                        xPos = x * self.SPRITE_WIDTH
-                        yPos = y * (self.SPRITE_HEIGHT // 2) - self.SPRITE_HEIGHT // 2
-                        if y % 2 != 0:
-                            xPos -= self.SPRITE_WIDTH // 2
-                        self.screen.blit(self.top_sprite, (xPos, yPos))
-
-            self.screen.blit(self.movable_sprite, self.player.position)
-            for char_id, char in self.map_state.characters.items():
-                if char_id != self.player.id:
-                    self.screen.blit(self.ai_sprite, char.position)
-
+            self.draw_food_sprites()
+            self.draw_characters()
             self.draw_character_stats()
 
             pygame.display.flip()
