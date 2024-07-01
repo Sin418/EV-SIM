@@ -1,5 +1,4 @@
 import math
-
 class MapState:
     def __init__(self):
         self.tiles = []
@@ -58,14 +57,17 @@ class MapState:
         self_x, self_y = character.position
         for food_x, food_y in self.food_locations:
             distance = math.sqrt((food_x - self_x) ** 2 + (food_y - self_y) ** 2)
-      
             if distance <= 30:
-                #print(f"Food eaten at ({food_x}, {food_y}) by character at ({self_x}, {self_y})")
                 self.remove_food(food_x, food_y)
                 return True
         return False
 
-
+    def get_game_state(self):
+        state = {
+            "characters": [(char.id, char.position, char.health) for char in self.characters.values()],
+            "food_locations": self.food_locations
+        }
+        return state
 
     def to_dict(self):
         return {

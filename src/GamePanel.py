@@ -1,10 +1,12 @@
 import pygame
 import random
 import math
+import torch
 from MapState import MapState
 from Human import Human
 from AI_Human import AI_Human
 from Interactions import Interactions
+from AI_manager import AIManager  # Import AIManager
 
 class GamePanel:
     SPRITE_WIDTH = 64
@@ -20,9 +22,9 @@ class GamePanel:
         self.load_sprites()
         self.generate_background()
         self.generate_food_positions()
-        self.map_state.add_character(Human("Player", 100, (self.PANEL_WIDTH // 2, self.PANEL_HEIGHT // 2)))
-        self.map_state.add_character(Human("AI_1", 100, (300, 300)))
-        self.map_state.add_character(Human("AI_2", 100, (850, 500)))
+        self.ai_manager = AIManager()  # Initialize AIManager
+        self.generation = 1  # Track the generation number
+        self.spawn_ai_agents(5)  # Example: Spawn 5 AI agents
         self.character_stats_to_display = []
         self.last_health_decrease_time = pygame.time.get_ticks()  # Initialize the timer
 
@@ -64,19 +66,13 @@ class GamePanel:
                         xPos -= self.SPRITE_WIDTH // 2
                     self.map_state.add_food(xPos, yPos)
 
-    def handle_movement(self, key):
-        movement_map = {
-            pygame.K_w: (0, -5),
-            pygame.K_a: (-5, 0),
-            pygame.K_s: (0, 5),
-            pygame.K_d: (5, 0)
-        }
-        
-        if key in movement_map:
-            dx, dy = movement_map[key]
-            for char in self.map_state.characters.values():
-                char.move(dx, dy)
-                self.map_state.update_character(char)
+    def spawn_ai_agents(self, num_agents):
+        for i in range(num_agents):
+            x = random.randint(0, self.PANEL_WIDTH - self.SPRITE_WIDTH)
+            y = random.randint(0, self.PANEL_HEIGHT - self.SPRITE_HEIGHT)
+            ai_agent = Human(f"AI_{i+1}", 100, (x, y))
+            self.map_state.add_character(ai_agent)
+            self.ai_manager.create_ai_agent(ai_agent.id)  # Create a separate AI model for each agent
 
     def handle_character_stats(self, pos):
         chars = self.map_state.characters.values()
@@ -90,7 +86,7 @@ class GamePanel:
                 self.character_stats_to_display.append(char)
 
     def handle_attack_interactions(self):
-        for char in self.map_state.characters.values():
+        for char in list(self.map_state.characters.values()):
             target_id = self.map_state.attack_check(char)
             if target_id:
                 target_character = self.map_state.get_character(target_id)
@@ -100,7 +96,7 @@ class GamePanel:
         self.check_and_remove_characters()  
 
     def handle_eating_interactions(self):
-        for char in self.map_state.characters.values():
+        for char in list(self.map_state.characters.values()):
             if self.map_state.check_food(char):
                 char.set_health(char.get_health() + 10)  
                 self.map_state.update_character(char)
@@ -135,17 +131,19 @@ Position: {char.get_position()}"""
     
     def decrease_health(self, value):
         chars_to_remove = []
-        for char_id, char in self.map_state.characters.items():
+        for char_id, char in list(self.map_state.characters.items()):
             char.set_health(char.get_health() - value)
             if char.get_health() <= 0:
                 chars_to_remove.append(char_id)
         for char_id in chars_to_remove:
             self.map_state.remove_character(char_id)
+            self.ai_manager.remove_ai_agent(char_id)  # Remove AI model for the dead agent
 
     def check_and_remove_characters(self):
-        chars_to_remove = [char_id for char_id, char in self.map_state.characters.items() if char.get_health() <= 0]
+        chars_to_remove = [char_id for char_id, char in list(self.map_state.characters.items()) if char.get_health() <= 0]
         for char_id in chars_to_remove:
             self.map_state.remove_character(char_id)
+            self.ai_manager.remove_ai_agent(char_id)  # Remove AI model for the dead agent
 
     def draw_food_sprites(self):
         for (x, y) in self.map_state.food_locations:
@@ -155,12 +153,25 @@ Position: {char.get_position()}"""
         for char in self.map_state.characters.values():
             self.screen.blit(self.ai_sprite, char.position)
 
+    def all_agents_dead(self):
+        return len(self.map_state.characters) == 0
+
+    def create_new_generation(self):
+        previous_agents = list(self.map_state.characters.values())
+        num_agents = len(previous_agents)
+        new_agents = self.ai_manager.evolve_agents(num_agents, previous_agents)
+        self.map_state.characters = {}
+        for agent in new_agents:
+            self.map_state.add_character(agent)
+        self.generation += 1
+        print(f"Generation {self.generation} created")
+
     def run(self):
         running = True
         clock = pygame.time.Clock()
         health_decrease_interval = 5000  
         last_health_decrease_time = pygame.time.get_ticks()
-        
+
         while running:
             current_time = pygame.time.get_ticks()
             if current_time - last_health_decrease_time >= health_decrease_interval:
@@ -168,23 +179,61 @@ Position: {char.get_position()}"""
                 last_health_decrease_time = current_time
                 self.check_and_remove_characters()
 
+            if self.all_agents_dead():
+                self.create_new_generation()
+                self.spawn_ai_agents(5)  # Re-spawn the AI agents
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-                elif event.type == pygame.KEYDOWN:
-                    self.handle_movement(event.key)
-                    if event.key == pygame.K_e:
-                        self.handle_attack_interactions()
-                    if event.key == pygame.K_f:
-                        self.handle_eating_interactions()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    pos = pygame.mouse.get_pos()
-                    self.handle_character_stats(pos)
+                    self.handle_character_stats(pygame.mouse.get_pos())
+
+            # Use AI to decide actions for each character
+            for char in list(self.map_state.characters.values()):
+                # Flatten the first six food positions (if available)
+                food_positions = sum(self.map_state.food_locations[:6], ())
+                # Ensure the length of food_positions is 12 (6 positions x 2 coordinates)
+                if len(food_positions) < 12:
+                    food_positions += (0, 0) * (6 - len(food_positions) // 2)
+
+                state_tensor = [
+                    char.position[0], char.position[1], char.health,
+                    *food_positions
+                ]
+
+                action = self.ai_manager.get_action(char.id, state_tensor)  # Use the AI model for this agent
+                actions = [
+                    (0, 0),  # idle
+                    (0, -5), # up
+                    (0, 5),  # down
+                    (-5, 0), # left
+                    (5, 0),  # right
+                    "attack", # attack
+                    "eat"     # eat
+                ]
+                selected_action = actions[action]
+                if selected_action == "attack":
+                    self.handle_attack_interactions()
+                elif selected_action == "eat":
+                    self.handle_eating_interactions()
+                else:
+                    dx, dy = selected_action
+                    # Ensure the character does not move out of bounds
+                    new_x = char.position[0] + dx
+                    new_y = char.position[1] + dy
+                    if 0 <= new_x <= self.PANEL_WIDTH - self.SPRITE_WIDTH and 0 <= new_y <= self.PANEL_HEIGHT - self.SPRITE_HEIGHT:
+                        char.move(dx, dy)
+                        self.map_state.update_character(char)
 
             self.screen.blit(self.background, (0, 0))
             self.draw_food_sprites()
             self.draw_characters()
             self.draw_character_stats()
+            
+            # Display generation count
+            gen_text = self.font.render(f"Generation: {self.generation}", True, (255, 255, 255))
+            self.screen.blit(gen_text, (10, 10))
 
             pygame.display.flip()
             clock.tick(60)
