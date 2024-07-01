@@ -1,10 +1,11 @@
 import pygame
 import random
+import math
 from MapState import MapState
 from Human import Human
 from AI_Human import AI_Human
 from Interactions import Interactions
-import math
+
 class GamePanel:
     SPRITE_WIDTH = 64
     SPRITE_HEIGHT = 31
@@ -14,6 +15,7 @@ class GamePanel:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((self.PANEL_WIDTH, self.PANEL_HEIGHT))
+        self.font = pygame.font.SysFont(None, 24)
         self.map_state = MapState()
         self.load_sprites()
         self.generate_background()
@@ -22,6 +24,7 @@ class GamePanel:
         self.map_state.add_character(self.player)
         self.map_state.add_character(Human("AI_1", 100, (300, 300)))
         self.map_state.add_character(Human("AI_2", 100, (850, 500)))
+        self.character_stats_to_display = []
 
     def load_sprites(self):
         self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
@@ -71,26 +74,56 @@ class GamePanel:
             self.player.move(5, 0)
         
         self.map_state.update_character(self.player)
-    def handle_character_stats(self,pos):
-        chars = (self.map_state.characters.values())
 
-        pos_x,pos_y = [i for i in pos]
+    def handle_character_stats(self, pos):
+        chars = self.map_state.characters.values()
+        pos_x, pos_y = pos
+        self.character_stats_to_display = []
 
         for char in chars:
-            char_x, char_y = [i for i in char.get_position()]
-            
+            char_x, char_y = char.get_position()
             distance = math.sqrt((pos_x - char_x) ** 2 + (pos_y - char_y) ** 2)
             if distance <= 30:
-                 print(char.get_name())
-        
+                self.character_stats_to_display.append(char)
+
     def handle_interactions(self):
         target_id = self.map_state.attack_check(self.player)
         if target_id:
-            #print(f"Attacking target with ID: {target_id}")
             target_character = self.map_state.get_character(target_id)
             Interactions.attack_player(self.player, target_id, self.map_state.characters.values())
             self.map_state.update_character(target_character)
             self.map_state.update_character(self.player)
+
+    def draw_character_stats(self):
+        y_offset = 50  # Initial y position for the first character's stats
+        for char in self.character_stats_to_display:
+            stats = f"""Name: {char.get_name()}
+Health: {char.get_health()}
+Weapon: {char.get_weapon().get_name()}
+Weapon Health: {char.get_weapon().get_health()}
+Weapon Strength: {char.get_weapon().get_damage()}
+Position: {char.get_position()}"""            
+            lines = stats.split('\n')
+            # Determine the width and height of the rectangle based on the text
+            rect_width = 400
+            rect_height = len(lines) * 30 + 20
+            bg_color = (255, 225, 225)  # Background color
+            border_color = (0, 0, 0)    # Border color
+            text_color = (0, 0, 0)      # Text color
+            padding = 10
+            border_width = 3
+            
+            # Draw background rectangle
+            pygame.draw.rect(self.screen, bg_color, pygame.Rect(50, y_offset, rect_width, rect_height), border_radius=10)
+            
+            # Draw border rectangle
+            pygame.draw.rect(self.screen, border_color, pygame.Rect(50, y_offset, rect_width, rect_height), border_radius=10, width=border_width)
+            
+            for i, line in enumerate(lines):
+                text_surface = self.font.render(line.strip(), True, text_color)
+                self.screen.blit(text_surface, (60, y_offset + i * 30 + padding))
+            y_offset += rect_height + 20  # Update y_offset for the next character's stats
+
 
     def run(self):
         running = True
@@ -121,6 +154,8 @@ class GamePanel:
             for char_id, char in self.map_state.characters.items():
                 if char_id != self.player.id:
                     self.screen.blit(self.ai_sprite, char.position)
+
+            self.draw_character_stats()
 
             pygame.display.flip()
             clock.tick(60)

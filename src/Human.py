@@ -45,19 +45,7 @@ class Human:
     def set_health(self, new_health):
         self.health = new_health 
 
-    def attack_check(self):
-        with open("state/character_state.json", 'r') as file:
-            json_data = json.load(file)
-
-        self_x, self_y = self.position
-        for character in json_data['characters']:
-            if character['id'] != self.id:
-                character_x = character['x']
-                character_y = character['y']
-                distance = math.sqrt((character_x - self_x) ** 2 + (character_y - self_y) ** 2)
-                if distance <= self.attack_radius:
-                    return character['id']
-        return None
+    
 
 
     

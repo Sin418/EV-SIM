@@ -10,6 +10,11 @@ class Weapon:
             self.health = 150
             self.damage = random.randint(5,10)
             self.fist = True
+    def get_name(self):
+        if self.fist:
+            return 'fist'
+        else:
+            return 'sword'
 
     def get_health(self):
         return self.health
