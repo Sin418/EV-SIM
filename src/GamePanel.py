@@ -4,7 +4,7 @@ import random
 from MapState import MapState
 from Human import Human
 from AI_Human import AI_Human
-
+from Interactions import Interactions
 class GamePanel:
     SPRITE_WIDTH = 64
     SPRITE_HEIGHT = 31
@@ -19,12 +19,11 @@ class GamePanel:
         self.generate_top_sprite_positions()
         self.player = Human("Player", 100, (self.PANEL_WIDTH // 2, self.PANEL_HEIGHT // 2))
         self.map_state = MapState()
-        self.ai_characters = [
-            AI_Human("AI_1", 100, (300, 300)),
-            AI_Human("AI_2", 100, (500, 400))
+        self.all_characters = [
+            self.player,
+            Human("AI_1", 100, (300, 300)),
+            Human("AI_2", 100, (850, 500))
         ]
-        self.all_characters = [self.player] + self.ai_characters
-
     def load_sprites(self):
         self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
         self.water_sprite = pygame.image.load("sprites/plain_water1.png")
@@ -60,12 +59,18 @@ class GamePanel:
                     self.top_sprite_positions[y][x] = True
 
     def save_character_state_to_json(self, filename):
-        tiles = []
-        character_positions = [{"id": char.id, "x": char.position[0], "y": char.position[1]} for char in self.all_characters]
-        data = {"tiles": tiles, "characters": character_positions}
+        character_positions = [{
+            "id": char.id,
+            "name": char.name,
+            "health": char.health,
+            "x": char.position[0],
+            "y": char.position[1]
+        } for char in self.all_characters]
+        
+        data = {"characters": character_positions}
 
         with open(filename, "w") as file:
-            json.dump(data, file)
+            json.dump(data, file, indent=4)
 
     def save_map_state_to_json(self, filename):
         tiles = []
@@ -82,11 +87,18 @@ class GamePanel:
                 has_top_sprite = self.top_sprite_positions[y][x]
                 tiles.append({"x": xPos, "y": yPos, "type": tile_type, "hasTopSprite": has_top_sprite})
 
-        character_positions = [{"id": char.id, "x": char.position[0], "y": char.position[1]} for char in self.all_characters]
+        character_positions = [{
+            "id": char.id,
+            "name": char.name,
+            "health": char.health,
+            "x": char.position[0],
+            "y": char.position[1]
+        } for char in self.all_characters]
+        
         data = {"tiles": tiles, "characters": character_positions}
 
         with open(filename, "w") as file:
-            json.dump(data, file)
+            json.dump(data, file, indent=4)
 
     def run(self):
         self.save_map_state_to_json("state/map_state.json")
@@ -107,11 +119,11 @@ class GamePanel:
                     elif event.key == pygame.K_d:
                         self.player.move(5, 0)
                     elif event.key == pygame.K_e:
-                        self.player.attack()
+                        target_id = self.player.attack_check()
+                        if target_id:
+                            Interactions.attack_player(self.player, target_id, self.all_characters)
 
-
-            for ai in self.ai_characters:
-                ai.ai_move()
+        
 
             self.screen.blit(self.background, (0, 0))
             for y in range(len(self.top_sprite_positions)):
@@ -124,7 +136,7 @@ class GamePanel:
                         self.screen.blit(self.top_sprite, (xPos, yPos))
 
             self.screen.blit(self.movable_sprite, self.player.position)
-            for ai in self.ai_characters:
+            for ai in self.all_characters:
                 self.screen.blit(self.ai_sprite, ai.position)
 
             pygame.display.flip()

@@ -1,1 +1,25 @@
-{"tiles": [], "characters": [{"id": "4e5772a5-867c-4e58-b8d4-07eddcca857b", "x": 515, "y": 395}, {"id": "4a420aab-9323-4e82-bf14-bffc28486450", "x": 300, "y": 300}, {"id": "03ca40e0-1e72-4a7e-9352-b81a96d2f64c", "x": 500, "y": 400}]}
+{
+    "characters": [
+        {
+            "id": "9bff2332-feeb-42fb-adbf-25d3f10fafd5",
+            "name": "Player",
+            "health": 100,
+            "x": 895,
+            "y": 500
+        },
+        {
+            "id": "e9f071ce-0311-47f3-958e-3d50e6065984",
+            "name": "AI_1",
+            "health": 100,
+            "x": 300,
+            "y": 300
+        },
+        {
+            "id": "2ef71830-0f79-42b5-b3a8-3f0e38defe9f",
+            "name": "AI_2",
+            "health": 0,
+            "x": 850,
+            "y": 500
+        }
+    ]
+}
