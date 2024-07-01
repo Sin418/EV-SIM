@@ -4,7 +4,7 @@ from MapState import MapState
 from Human import Human
 from AI_Human import AI_Human
 from Interactions import Interactions
-
+import math
 class GamePanel:
     SPRITE_WIDTH = 64
     SPRITE_HEIGHT = 31
@@ -51,6 +51,7 @@ class GamePanel:
     def generate_top_sprite_positions(self):
         cols = self.PANEL_WIDTH // self.SPRITE_WIDTH + 2
         rows = self.PANEL_HEIGHT // (self.SPRITE_HEIGHT // 2) + 2
+        
         self.top_sprite_positions = [[False for _ in range(cols)] for _ in range(rows)]
 
         for y in range(rows):
@@ -68,12 +69,24 @@ class GamePanel:
             self.player.move(0, 5)
         elif key == pygame.K_d:
             self.player.move(5, 0)
+        
         self.map_state.update_character(self.player)
+    def handle_character_stats(self,pos):
+        chars = (self.map_state.characters.values())
 
+        pos_x,pos_y = [i for i in pos]
+
+        for char in chars:
+            char_x, char_y = [i for i in char.get_position()]
+            
+            distance = math.sqrt((pos_x - char_x) ** 2 + (pos_y - char_y) ** 2)
+            if distance <= 30:
+                 print(char.get_name())
+        
     def handle_interactions(self):
         target_id = self.map_state.attack_check(self.player)
         if target_id:
-            print(f"Attacking target with ID: {target_id}")
+            #print(f"Attacking target with ID: {target_id}")
             target_character = self.map_state.get_character(target_id)
             Interactions.attack_player(self.player, target_id, self.map_state.characters.values())
             self.map_state.update_character(target_character)
@@ -90,6 +103,9 @@ class GamePanel:
                     self.handle_player_movement(event.key)
                     if event.key == pygame.K_e:
                         self.handle_interactions()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    pos = pygame.mouse.get_pos()
+                    self.handle_character_stats(pos)
 
             self.screen.blit(self.background, (0, 0))
             for y in range(len(self.top_sprite_positions)):
