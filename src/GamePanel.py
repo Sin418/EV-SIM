@@ -21,8 +21,9 @@ class GamePanel:
         self.map_state = MapState()
         self.load_sprites()
         self.generate_background()
-        self.generate_food_positions()
-        self.ai_manager = AIManager()  # Initialize AIManager
+        self.TARGET_FOOD_COUNT = 20  # Define TARGET_FOOD_COUNT here
+        self.generate_food_positions(self.TARGET_FOOD_COUNT)  # Initialize with target food count
+        self.ai_manager = AIManager(epsilon=0.1)  # Initialize AIManager with epsilon-greedy strategy
         self.generation = 1  # Track the generation number
         self.spawn_ai_agents(5)  # Example: Spawn 5 AI agents
         self.character_stats_to_display = []
@@ -53,18 +54,20 @@ class GamePanel:
                 self.background.blit(bottom_sprite, (xPos, yPos))
                 self.map_state.add_tile(xPos, yPos, "water" if is_water else "grass")
 
-    def generate_food_positions(self):
-        cols = self.PANEL_WIDTH // self.SPRITE_WIDTH + 2
-        rows = self.PANEL_HEIGHT // (self.SPRITE_HEIGHT // 2) + 2
-        
-        for y in range(rows):
-            for x in range(cols):
-                if not self.water_positions[y][x] and random.randint(0, 16) == 0:
-                    xPos = x * self.SPRITE_WIDTH
-                    yPos = y * (self.SPRITE_HEIGHT // 2) - self.SPRITE_HEIGHT // 2
-                    if y % 2 != 0:
-                        xPos -= self.SPRITE_WIDTH // 2
-                    self.map_state.add_food(xPos, yPos)
+    def generate_food_positions(self, target_count):
+        while len(self.map_state.food_locations) < target_count:
+            xPos = random.randint(0, self.PANEL_WIDTH - self.SPRITE_WIDTH)
+            yPos = random.randint(0, self.PANEL_HEIGHT - self.SPRITE_HEIGHT)
+            # Ensure food does not spawn on water tiles
+            tile_x = xPos // self.SPRITE_WIDTH
+            tile_y = yPos // (self.SPRITE_HEIGHT // 2)
+            if self.water_positions[tile_y][tile_x] == False:
+                self.map_state.add_food(xPos, yPos)
+
+    def replenish_food(self):
+        current_food_count = len(self.map_state.food_locations)
+        if current_food_count < self.TARGET_FOOD_COUNT - 5:
+            self.generate_food_positions(self.TARGET_FOOD_COUNT)
 
     def spawn_ai_agents(self, num_agents):
         for i in range(num_agents):
@@ -93,13 +96,15 @@ class GamePanel:
                 Interactions.attack_player(char, target_id, self.map_state.characters.values())
                 self.map_state.update_character(target_character)
                 self.map_state.update_character(char)
+                self.ai_manager.update_reward(char.id, 10)  # Reward for attacking
         self.check_and_remove_characters()  
 
     def handle_eating_interactions(self):
         for char in list(self.map_state.characters.values()):
             if self.map_state.check_food(char):
-                char.set_health(char.get_health() + 10)  
+                char.set_health(char.get_health() + 10)
                 self.map_state.update_character(char)
+                self.ai_manager.update_reward(char.id, 20)  # Reward for eating food
 
     def draw_character_stats(self):
         y_offset = 50  # 
@@ -164,7 +169,9 @@ Position: {char.get_position()}"""
         for agent in new_agents:
             self.map_state.add_character(agent)
         self.generation += 1
-        print(f"Generation {self.generation} created")
+        self.ai_manager.update_epsilon()  # Update epsilon after each generation
+        print(f"Generation {self.generation} created, epsilon: {self.ai_manager.epsilon}")
+
 
     def run(self):
         running = True
@@ -178,6 +185,7 @@ Position: {char.get_position()}"""
                 self.decrease_health(10)
                 last_health_decrease_time = current_time
                 self.check_and_remove_characters()
+                self.replenish_food()  # Replenish food if necessary
 
             if self.all_agents_dead():
                 self.create_new_generation()
@@ -197,10 +205,17 @@ Position: {char.get_position()}"""
                 if len(food_positions) < 12:
                     food_positions += (0, 0) * (6 - len(food_positions) // 2)
 
+                # Add more detailed state information
+                nearest_food_distance = min(math.sqrt((food_x - char.position[0]) ** 2 + (food_y - char.position[1]) ** 2) for food_x, food_y in self.map_state.food_locations) if self.map_state.food_locations else float('inf')
+                nearest_character_distance = min(math.sqrt((char_x.position[0] - char.position[0]) ** 2 + (char_x.position[1] - char.position[1]) ** 2) for char_x in self.map_state.characters.values() if char_x.id != char.id) if len(self.map_state.characters) > 1 else float('inf')
+
                 state_tensor = [
                     char.position[0], char.position[1], char.health,
+                    nearest_food_distance, nearest_character_distance,
                     *food_positions
                 ]
+
+                state_tensor = state_tensor[:15]  # Ensure the input size matches the expected model input size
 
                 action = self.ai_manager.get_action(char.id, state_tensor)  # Use the AI model for this agent
                 actions = [
@@ -238,3 +253,6 @@ Position: {char.get_position()}"""
             pygame.display.flip()
             clock.tick(60)
         pygame.quit()
+
+
+
