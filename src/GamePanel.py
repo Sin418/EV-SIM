@@ -21,13 +21,13 @@ class GamePanel:
         self.map_state = MapState()
         self.load_sprites()
         self.generate_background()
-        self.TARGET_FOOD_COUNT = 20  # Define TARGET_FOOD_COUNT here
-        self.generate_food_positions(self.TARGET_FOOD_COUNT)  # Initialize with target food count
-        self.ai_manager = AIManager(epsilon=0.1)  # Initialize AIManager with epsilon-greedy strategy
-        self.generation = 1  # Track the generation number
-        self.spawn_ai_agents(5)  # Example: Spawn 5 AI agents
+        self.TARGET_FOOD_COUNT = 20
+        self.generate_food_positions(self.TARGET_FOOD_COUNT)
+        self.ai_manager = AIManager(epsilon=0.1)
+        self.generation = 1
+        self.spawn_ai_agents(5)
         self.character_stats_to_display = []
-        self.last_health_decrease_time = pygame.time.get_ticks()  # Initialize the timer
+        self.last_health_decrease_time = pygame.time.get_ticks()
 
     def load_sprites(self):
         self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
@@ -58,10 +58,9 @@ class GamePanel:
         while len(self.map_state.food_locations) < target_count:
             xPos = random.randint(0, self.PANEL_WIDTH - self.SPRITE_WIDTH)
             yPos = random.randint(0, self.PANEL_HEIGHT - self.SPRITE_HEIGHT)
-            # Ensure food does not spawn on water tiles
             tile_x = xPos // self.SPRITE_WIDTH
             tile_y = yPos // (self.SPRITE_HEIGHT // 2)
-            if self.water_positions[tile_y][tile_x] == False:
+            if not self.water_positions[tile_y][tile_x]:
                 self.map_state.add_food(xPos, yPos)
 
     def replenish_food(self):
@@ -73,9 +72,9 @@ class GamePanel:
         for i in range(num_agents):
             x = random.randint(0, self.PANEL_WIDTH - self.SPRITE_WIDTH)
             y = random.randint(0, self.PANEL_HEIGHT - self.SPRITE_HEIGHT)
-            ai_agent = Human(f"AI_{i+1}", 100, (x, y))
+            ai_agent = AI_Human(f"AI_{i+1}", 100, (x, y))
             self.map_state.add_character(ai_agent)
-            self.ai_manager.create_ai_agent(ai_agent.id)  # Create a separate AI model for each agent
+            self.ai_manager.create_ai_agent(ai_agent.id)
 
     def handle_character_stats(self, pos):
         chars = self.map_state.characters.values()
@@ -97,7 +96,7 @@ class GamePanel:
                 self.map_state.update_character(target_character)
                 self.map_state.update_character(char)
                 self.ai_manager.update_reward(char.id, 10)  # Reward for attacking
-        self.check_and_remove_characters()  
+        self.check_and_remove_characters()
 
     def handle_eating_interactions(self):
         for char in list(self.map_state.characters.values()):
@@ -107,33 +106,32 @@ class GamePanel:
                 self.ai_manager.update_reward(char.id, 20)  # Reward for eating food
 
     def draw_character_stats(self):
-        y_offset = 50  # 
+        y_offset = 50
         for char in self.character_stats_to_display:
             stats = f"""Name: {char.get_name()}
 Health: {char.get_health()}
 Weapon: {char.get_weapon().get_name()}
 Weapon Health: {char.get_weapon().get_health()}
 Weapon Strength: {char.get_weapon().get_damage()}
-Position: {char.get_position()}"""            
+Position: {char.get_position()}"""
             lines = stats.split('\n')
-         
+
             rect_width = 400
             rect_height = len(lines) * 30 + 20
-            bg_color = (255, 225, 225)  
-            border_color = (0, 0, 0)    
-            text_color = (0, 0, 0)      
+            bg_color = (255, 225, 225)
+            border_color = (0, 0, 0)
+            text_color = (0, 0, 0)
             padding = 10
             border_width = 3
-            
+
             pygame.draw.rect(self.screen, bg_color, pygame.Rect(50, y_offset, rect_width, rect_height), border_radius=10)
-            
             pygame.draw.rect(self.screen, border_color, pygame.Rect(50, y_offset, rect_width, rect_height), border_radius=10, width=border_width)
-            
+
             for i, line in enumerate(lines):
                 text_surface = self.font.render(line.strip(), True, text_color)
                 self.screen.blit(text_surface, (60, y_offset + i * 30 + padding))
-            y_offset += rect_height + 20  
-    
+            y_offset += rect_height + 20
+
     def decrease_health(self, value):
         chars_to_remove = []
         for char_id, char in list(self.map_state.characters.items()):
@@ -142,13 +140,13 @@ Position: {char.get_position()}"""
                 chars_to_remove.append(char_id)
         for char_id in chars_to_remove:
             self.map_state.remove_character(char_id)
-            self.ai_manager.remove_ai_agent(char_id)  # Remove AI model for the dead agent
+            self.ai_manager.remove_ai_agent(char_id)
 
     def check_and_remove_characters(self):
         chars_to_remove = [char_id for char_id, char in list(self.map_state.characters.items()) if char.get_health() <= 0]
         for char_id in chars_to_remove:
             self.map_state.remove_character(char_id)
-            self.ai_manager.remove_ai_agent(char_id)  # Remove AI model for the dead agent
+            self.ai_manager.remove_ai_agent(char_id)
 
     def draw_food_sprites(self):
         for (x, y) in self.map_state.food_locations:
@@ -169,90 +167,73 @@ Position: {char.get_position()}"""
         for agent in new_agents:
             self.map_state.add_character(agent)
         self.generation += 1
-        self.ai_manager.update_epsilon()  # Update epsilon after each generation
+        self.ai_manager.update_epsilon()
         print(f"Generation {self.generation} created, epsilon: {self.ai_manager.epsilon}")
 
+    def handle_ai_actions(self):
+        for char in self.map_state.characters.values():
+            if isinstance(char, AI_Human):
+                action = self.ai_manager.get_action(char.id)
+                if action == 'move':
+                    self.move_ai_agent(char)
+                elif action == 'attack':
+                    self.attack_with_ai_agent(char)
+                elif action == 'eat':
+                    self.eat_with_ai_agent(char)
 
-    def run(self):
+    def move_ai_agent(self, agent):
+        x, y = agent.position
+        x += random.randint(-10, 10)
+        y += random.randint(-10, 10)
+        x = max(0, min(x, self.PANEL_WIDTH - self.SPRITE_WIDTH))
+        y = max(0, min(y, self.PANEL_HEIGHT - self.SPRITE_HEIGHT))
+        agent.position = (x, y)
+        self.map_state.update_character(agent)
+
+    def attack_with_ai_agent(self, agent):
+        target_id = self.map_state.attack_check(agent)
+        if target_id:
+            target_character = self.map_state.get_character(target_id)
+            Interactions.attack_player(agent, target_id, self.map_state.characters.values())
+            self.map_state.update_character(target_character)
+            self.map_state.update_character(agent)
+            self.ai_manager.update_reward(agent.id, 10)
+
+    def eat_with_ai_agent(self, agent):
+        if self.map_state.check_food(agent):
+            agent.set_health(agent.get_health() + 10)
+            self.map_state.update_character(agent)
+            self.ai_manager.update_reward(agent.id, 20)
+
+    def game_loop(self):
         running = True
         clock = pygame.time.Clock()
-        health_decrease_interval = 5000  
-        last_health_decrease_time = pygame.time.get_ticks()
-
         while running:
-            current_time = pygame.time.get_ticks()
-            if current_time - last_health_decrease_time >= health_decrease_interval:
-                self.decrease_health(10)
-                last_health_decrease_time = current_time
-                self.check_and_remove_characters()
-                self.replenish_food()  # Replenish food if necessary
-
+            self.handle_ai_actions()
+            self.handle_attack_interactions()
+            self.handle_eating_interactions()
+            self.replenish_food()
             if self.all_agents_dead():
                 self.create_new_generation()
-                self.spawn_ai_agents(5)  # Re-spawn the AI agents
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    self.handle_character_stats(pygame.mouse.get_pos())
-
-            # Use AI to decide actions for each character
-            for char in list(self.map_state.characters.values()):
-                # Flatten the first six food positions (if available)
-                food_positions = sum(self.map_state.food_locations[:6], ())
-                # Ensure the length of food_positions is 12 (6 positions x 2 coordinates)
-                if len(food_positions) < 12:
-                    food_positions += (0, 0) * (6 - len(food_positions) // 2)
-
-                # Add more detailed state information
-                nearest_food_distance = min(math.sqrt((food_x - char.position[0]) ** 2 + (food_y - char.position[1]) ** 2) for food_x, food_y in self.map_state.food_locations) if self.map_state.food_locations else float('inf')
-                nearest_character_distance = min(math.sqrt((char_x.position[0] - char.position[0]) ** 2 + (char_x.position[1] - char.position[1]) ** 2) for char_x in self.map_state.characters.values() if char_x.id != char.id) if len(self.map_state.characters) > 1 else float('inf')
-
-                state_tensor = [
-                    char.position[0], char.position[1], char.health,
-                    nearest_food_distance, nearest_character_distance,
-                    *food_positions
-                ]
-
-                state_tensor = state_tensor[:15]  # Ensure the input size matches the expected model input size
-
-                action = self.ai_manager.get_action(char.id, state_tensor)  # Use the AI model for this agent
-                actions = [
-                    (0, 0),  # idle
-                    (0, -5), # up
-                    (0, 5),  # down
-                    (-5, 0), # left
-                    (5, 0),  # right
-                    "attack", # attack
-                    "eat"     # eat
-                ]
-                selected_action = actions[action]
-                if selected_action == "attack":
-                    self.handle_attack_interactions()
-                elif selected_action == "eat":
-                    self.handle_eating_interactions()
-                else:
-                    dx, dy = selected_action
-                    # Ensure the character does not move out of bounds
-                    new_x = char.position[0] + dx
-                    new_y = char.position[1] + dy
-                    if 0 <= new_x <= self.PANEL_WIDTH - self.SPRITE_WIDTH and 0 <= new_y <= self.PANEL_HEIGHT - self.SPRITE_HEIGHT:
-                        char.move(dx, dy)
-                        self.map_state.update_character(char)
 
             self.screen.blit(self.background, (0, 0))
             self.draw_food_sprites()
             self.draw_characters()
             self.draw_character_stats()
-            
-            # Display generation count
-            gen_text = self.font.render(f"Generation: {self.generation}", True, (255, 255, 255))
-            self.screen.blit(gen_text, (10, 10))
-
             pygame.display.flip()
-            clock.tick(60)
+            clock.tick(30)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    pos = pygame.mouse.get_pos()
+                    self.handle_character_stats(pos)
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_d:
+                        current_time = pygame.time.get_ticks()
+                        if current_time - self.last_health_decrease_time > 5000:  # 5 seconds
+                            self.decrease_health(10)
+                            self.last_health_decrease_time = current_time
+
         pygame.quit()
-
-
-
