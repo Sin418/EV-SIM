@@ -1,10 +1,9 @@
-# ai_manager.py
-
 import torch
 from AI_model import create_ai_model
 import random
 from collections import deque
 from Human import Human
+
 class AIManager:
     def __init__(self, memory_size=100, epsilon=1.0, epsilon_min=0.01, decay_rate=0.995):
         self.models = {}
@@ -19,12 +18,13 @@ class AIManager:
         self.models[agent_id] = create_ai_model()
         self.memory[agent_id] = deque(maxlen=self.memory_size)  # Create a memory buffer for each agent
         self.rewards[agent_id] = 0  # Initialize rewards for each agent
-    
+
     def update_epsilon(self):
         # Decay epsilon after each generation
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.decay_rate
             self.epsilon = max(self.epsilon_min, self.epsilon)
+    
     def get_action(self, agent_id, state):
         if agent_id not in self.models:
             self.create_ai_agent(agent_id)
@@ -39,7 +39,6 @@ class AIManager:
 
         self.memory[agent_id].append((state, action))  # Store state and action in memory
         return action
-
 
     def remove_ai_agent(self, agent_id):
         if agent_id in self.models:
@@ -70,3 +69,29 @@ class AIManager:
 
     def update_reward(self, agent_id, reward):
         self.rewards[agent_id] += reward
+
+    def save_model(self, agent_id, file_path):
+        if agent_id in self.models:
+            torch.save(self.models[agent_id].state_dict(), file_path)
+        else:
+            raise ValueError(f"Model with ID {agent_id} does not exist")
+
+    def load_model(self, agent_id, file_path):
+        if agent_id in self.models:
+            self.models[agent_id].load_state_dict(torch.load(file_path))
+        else:
+            raise ValueError(f"Model with ID {agent_id} does not exist")
+
+    def get_top_agents(self, top_n=5):
+        sorted_agents = sorted(self.rewards.items(), key=lambda x: x[1], reverse=True)
+        return sorted_agents[:top_n]
+
+    def get_agent_statistics(self, agent_id):
+        if agent_id in self.models:
+            return {
+                'epsilon': self.epsilon,
+                'reward': self.rewards.get(agent_id, 0),
+                'actions_taken': len(self.memory.get(agent_id, []))
+            }
+        else:
+            raise ValueError(f"Model with ID {agent_id} does not exist")
