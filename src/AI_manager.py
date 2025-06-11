@@ -11,6 +11,7 @@ class AIManager:
         self.models = {}
         self.target_models = {}  # Target networks for stable learning
         self.memory = {}
+        self.optimizers = {}  # Initialize optimizers dictionary
         self.memory_size = memory_size
         self.rewards = {}
         self.epsilon = epsilon

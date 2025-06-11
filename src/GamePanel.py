@@ -186,15 +186,28 @@ Position: {char.get_position()}"""
                 
                 # Give small negative reward for each action to encourage efficiency
                 self.ai_manager.update_reward(char.id, -0.1)
+                
+                # Debug info for agent behavior
+                if random.random() < 0.01:  # 1% chance to print debug info
+                    print(f"Agent {char.id} - Health: {char.get_health()}, Action: {action}, Reward: {self.ai_manager.rewards[char.id]:.1f}")
 
     def move_ai_agent(self, agent):
         x, y = agent.position
-        x += random.randint(-10, 10)
-        y += random.randint(-10, 10)
+        # Increase movement range for more dynamic behavior
+        x += random.randint(-20, 20)
+        y += random.randint(-20, 20)
         x = max(0, min(x, self.PANEL_WIDTH - self.SPRITE_WIDTH))
         y = max(0, min(y, self.PANEL_HEIGHT - self.SPRITE_HEIGHT))
         agent.position = (x, y)
         self.map_state.update_character(agent)
+        # Give small reward for moving towards food or away from low health
+        if agent.get_health() < 30:  # If health is low, reward moving towards food
+            nearest_food_dist = float('inf')
+            for food_x, food_y, _ in self.map_state.food_locations:
+                dist = ((food_x - x) ** 2 + (food_y - y) ** 2) ** 0.5
+                nearest_food_dist = min(nearest_food_dist, dist)
+            if nearest_food_dist < 100:  # If close to food
+                self.ai_manager.update_reward(agent.id, 0.5)  # Small reward for finding food
 
     def attack_with_ai_agent(self, agent):
         target_id = self.map_state.attack_check(agent)
@@ -215,6 +228,7 @@ Position: {char.get_position()}"""
         running = True
         clock = pygame.time.Clock()
         last_fps_update = pygame.time.get_ticks()
+        last_debug_update = pygame.time.get_ticks()
         fps = 0
         frame_count = 0
 
@@ -222,18 +236,21 @@ Position: {char.get_position()}"""
             current_time = pygame.time.get_ticks()
             frame_count += 1
             
-            # Update FPS every second
+            # Update FPS and debug info every second
             if current_time - last_fps_update >= 1000:
                 fps = frame_count
                 frame_count = 0
                 last_fps_update = current_time
                 print(f"FPS: {fps}, Agents: {len(self.map_state.characters)}, Food: {len(self.map_state.food_locations)}, Generation: {self.generation}")
+                print(f"Epsilon: {self.ai_manager.epsilon:.3f}, Top Reward: {max(self.ai_manager.rewards.values()) if self.ai_manager.rewards else 0:.1f}")
 
             # Auto decrease health over time
             if current_time - self.last_auto_health_decrease_time >= self.AUTO_HEALTH_DECREASE_INTERVAL:
                 self.decrease_health(self.AUTO_HEALTH_DECREASE_AMOUNT)
                 self.last_auto_health_decrease_time = current_time
-                print(f"Auto decreased health of all agents by {self.AUTO_HEALTH_DECREASE_AMOUNT}")
+                # Print health status of all agents
+                for char in self.map_state.characters.values():
+                    print(f"Agent {char.id} health: {char.get_health()}")
 
             self.handle_ai_actions()
             self.handle_attack_interactions()
