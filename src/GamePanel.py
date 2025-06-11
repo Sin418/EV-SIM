@@ -176,13 +176,16 @@ Position: {char.get_position()}"""
     def handle_ai_actions(self):
         for char in self.map_state.characters.values():
             if isinstance(char, AI_Human):
-                action = self.ai_manager.get_action(char.id)
+                action = self.ai_manager.get_action(char.id, char, self.map_state)
                 if action == 'move':
                     self.move_ai_agent(char)
                 elif action == 'attack':
                     self.attack_with_ai_agent(char)
                 elif action == 'eat':
                     self.eat_with_ai_agent(char)
+                
+                # Give small negative reward for each action to encourage efficiency
+                self.ai_manager.update_reward(char.id, -0.1)
 
     def move_ai_agent(self, agent):
         x, y = agent.position
