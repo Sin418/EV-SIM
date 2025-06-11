@@ -3,7 +3,7 @@ from GamePanel import GamePanel
 
 def main():
     game_panel = GamePanel()
-    game_panel.run()
+    game_panel.game_loop()
 
 
 

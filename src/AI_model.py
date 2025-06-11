@@ -31,10 +31,10 @@ class EnhancedAIModel(nn.Module):
         x = self.fc3(x)
         return x
 
-def create_enhanced_ai_model():
-    input_size = 15  # Updated input size: 2 (position) + 1 (health) + 12 (food positions)
-    hidden_size = 128
-    output_size = 6  # Output: 6 possible actions (idle, up, down, left, right, attack, eat)
+def create_ai_model():
+    input_size = 8  # 2 (position) + 1 (health) + 1 (weapon health) + 1 (weapon damage) + 3 (nearest food/character distances)
+    hidden_size = 64
+    output_size = 3  # Output: 3 possible actions (move, attack, eat)
     model = EnhancedAIModel(input_size, hidden_size, output_size)
     return model
 

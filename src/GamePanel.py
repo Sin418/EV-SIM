@@ -18,7 +18,7 @@ class GamePanel:
         pygame.init()
         self.screen = pygame.display.set_mode((self.PANEL_WIDTH, self.PANEL_HEIGHT))
         self.font = pygame.font.SysFont(None, 24)
-        self.map_state = MapState()
+        self.map_state = MapState(width=self.PANEL_WIDTH, height=self.PANEL_HEIGHT)
         self.load_sprites()
         self.generate_background()
         self.TARGET_FOOD_COUNT = 20
@@ -28,6 +28,9 @@ class GamePanel:
         self.spawn_ai_agents(5)
         self.character_stats_to_display = []
         self.last_health_decrease_time = pygame.time.get_ticks()
+        self.last_auto_health_decrease_time = pygame.time.get_ticks()  # Add timer for auto health decrease
+        self.AUTO_HEALTH_DECREASE_INTERVAL = 2000  # Decrease health every 2 seconds
+        self.AUTO_HEALTH_DECREASE_AMOUNT = 1  # Decrease by 1 health point
 
     def load_sprites(self):
         self.grass_sprites = [pygame.image.load(f"sprites/plain_grass{i+1}.png") for i in range(4)]
@@ -149,7 +152,7 @@ Position: {char.get_position()}"""
             self.ai_manager.remove_ai_agent(char_id)
 
     def draw_food_sprites(self):
-        for (x, y) in self.map_state.food_locations:
+        for x, y, _ in self.map_state.food_locations:  # Unpack all three values but ignore food_type
             self.screen.blit(self.food_sprite, (x + 15, y))
 
     def draw_characters(self):
@@ -208,18 +211,47 @@ Position: {char.get_position()}"""
     def game_loop(self):
         running = True
         clock = pygame.time.Clock()
+        last_fps_update = pygame.time.get_ticks()
+        fps = 0
+        frame_count = 0
+
         while running:
+            current_time = pygame.time.get_ticks()
+            frame_count += 1
+            
+            # Update FPS every second
+            if current_time - last_fps_update >= 1000:
+                fps = frame_count
+                frame_count = 0
+                last_fps_update = current_time
+                print(f"FPS: {fps}, Agents: {len(self.map_state.characters)}, Food: {len(self.map_state.food_locations)}, Generation: {self.generation}")
+
+            # Auto decrease health over time
+            if current_time - self.last_auto_health_decrease_time >= self.AUTO_HEALTH_DECREASE_INTERVAL:
+                self.decrease_health(self.AUTO_HEALTH_DECREASE_AMOUNT)
+                self.last_auto_health_decrease_time = current_time
+                print(f"Auto decreased health of all agents by {self.AUTO_HEALTH_DECREASE_AMOUNT}")
+
             self.handle_ai_actions()
             self.handle_attack_interactions()
             self.handle_eating_interactions()
             self.replenish_food()
+            
             if self.all_agents_dead():
+                print(f"All agents died in generation {self.generation}. Creating new generation...")
                 self.create_new_generation()
 
+            # Draw everything
             self.screen.blit(self.background, (0, 0))
             self.draw_food_sprites()
             self.draw_characters()
             self.draw_character_stats()
+            
+            # Draw FPS and generation info
+            debug_text = f"FPS: {fps} | Generation: {self.generation} | Agents: {len(self.map_state.characters)} | Food: {len(self.map_state.food_locations)}"
+            text_surface = self.font.render(debug_text, True, (255, 255, 255))
+            self.screen.blit(text_surface, (10, 10))
+            
             pygame.display.flip()
             clock.tick(30)
 
@@ -233,6 +265,7 @@ Position: {char.get_position()}"""
                     if event.key == pygame.K_d:
                         current_time = pygame.time.get_ticks()
                         if current_time - self.last_health_decrease_time > 5000:  # 5 seconds
+                            print("Decreasing health of all agents by 10")
                             self.decrease_health(10)
                             self.last_health_decrease_time = current_time
 

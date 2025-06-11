@@ -1,20 +1,14 @@
 import random
 
 class Weapon:
-    def __init__(self, has_weapon):
-        if has_weapon:
-            self.health = random.randint(6, 10)
-            self.damage = random.randint(20, 30)
-            self.fist = False
-        else:
-            self.health = 150
-            self.damage = random.randint(5,10)
-            self.fist = True
+    def __init__(self, name="fist", health=150, damage=5):
+        self.name = name
+        self.health = health
+        self.damage = damage
+        self.fist = name == "fist"
+
     def get_name(self):
-        if self.fist:
-            return 'fist'
-        else:
-            return 'sword'
+        return self.name
 
     def get_health(self):
         return self.health
@@ -24,3 +18,7 @@ class Weapon:
 
     def get_fist(self):
         return self.fist
+
+    def take_damage(self, amount):
+        self.health = max(0, self.health - amount)
+        return self.health <= 0  # Return True if weapon is broken
