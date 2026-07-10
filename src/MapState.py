@@ -1,11 +1,14 @@
 import math
 from typing import List, Dict, Tuple, Union
+import random
 
 class MapState:
     def __init__(self, width: int, height: int):
         self.tiles = []
         self.characters = {}
         self.food_locations = []
+        self.resources = []  # List of (position, type, amount) tuples
+        self.buildings = []  # List of (position, type, health) tuples
         self.width = width
         self.height = height
 
@@ -42,6 +45,33 @@ class MapState:
                 self.inventory[item] -= quantity
                 if self.inventory[item] <= 0:
                     del self.inventory[item]
+
+    class Resource:
+        def __init__(self, position: Tuple[int, int], resource_type: str, amount: int):
+            self.position = position
+            self.type = resource_type
+            self.amount = amount
+            self.respawn_time = 0  # Time until resource respawns
+
+    class Building:
+        def __init__(self, position: Tuple[int, int], building_type: str):
+            self.position = position
+            self.type = building_type
+            self.health = 100
+            self.owner_id = None  # ID of agent that built it
+            self.stored_food = 0  # Amount of food stored in the building
+
+        def add_food(self, amount: int):
+            self.stored_food += amount
+
+        def remove_food(self, amount: int) -> int:
+            if self.stored_food >= amount:
+                self.stored_food -= amount
+                return amount
+            else:
+                available = self.stored_food
+                self.stored_food = 0
+                return available
 
     def add_tile(self, x: int, y: int, tile_type: str, has_top_sprite: bool = False, attributes: Dict[str, Union[str, int, bool]] = None):
         tile = self.Tile(x, y, tile_type, has_top_sprite, attributes)
@@ -94,6 +124,57 @@ class MapState:
                 self.remove_food(food_x, food_y)
                 return True
         return False
+
+    def add_resource(self, position: Tuple[int, int], resource_type: str, amount: int):
+        """Add a resource to the map"""
+        self.resources.append(self.Resource(position, resource_type, amount))
+
+    def remove_resource(self, position: Tuple[int, int]):
+        """Remove a resource from the map"""
+        for i, resource in enumerate(self.resources):
+            if resource.position == position:
+                del self.resources[i]
+                return
+
+    def add_building(self, position: Tuple[int, int], building_type: str, owner_id: str):
+        """Add a building to the map"""
+        building = self.Building(position, building_type)
+        building.owner_id = owner_id
+        self.buildings.append(building)
+
+    def remove_building(self, position: Tuple[int, int]):
+        """Remove a building from the map"""
+        for i, building in enumerate(self.buildings):
+            if building.position == position:
+                del self.buildings[i]
+                return
+
+    def get_nearby_resources(self, position: Tuple[int, int], range: float) -> List[Resource]:
+        """Get all resources within range of a position"""
+        nearby = []
+        for resource in self.resources:
+            if ((position[0] - resource.position[0])**2 + 
+                (position[1] - resource.position[1])**2)**0.5 <= range:
+                nearby.append(resource)
+        return nearby
+
+    def get_nearby_buildings(self, position: Tuple[int, int], range: float) -> List[Building]:
+        """Get all buildings within range of a position"""
+        nearby = []
+        for building in self.buildings:
+            if ((position[0] - building.position[0])**2 + 
+                (position[1] - building.position[1])**2)**0.5 <= range:
+                nearby.append(building)
+        return nearby
+
+    def update_resources(self, dt: float):
+        """Update resource respawn timers"""
+        for resource in self.resources:
+            if resource.amount <= 0:
+                resource.respawn_time -= dt
+                if resource.respawn_time <= 0:
+                    resource.amount = random.randint(5, 15)
+                    resource.respawn_time = 30.0  # 30 seconds respawn time
 
     def get_game_state(self) -> Dict[str, Union[List[Tuple[int, Tuple[int, int], int]], List[Tuple[int, int, str]]]]:
         state = {
